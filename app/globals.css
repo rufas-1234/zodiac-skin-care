@@ -1,0 +1,91 @@
+@import "tailwindcss";
+
+:root {
+  --background: #faf7f4;
+  --foreground: #382a2a;
+  --muted: #7d625f;
+  --rose: #b87580;
+  --rose-soft: #e8c9c5;
+  --nude: #d9b8ad;
+  --champagne: #e8d8c5;
+  --ivory: #faf7f4;
+  --card: #ffffff;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: "Segoe UI", sans-serif;
+}
+
+.font-serif {
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+img {
+  max-width: 100%;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+.container-shell {
+  @apply mx-auto max-w-7xl px-4 sm:px-6 lg:px-8;
+}
+
+.section-card {
+  @apply rounded-[32px] border border-[#f1dfd9] bg-white shadow-[0_14px_40px_rgba(56,42,42,0.05)];
+}
+
+.admin-input {
+  @apply w-full rounded-2xl border border-[#eadcdf] bg-white px-4 py-3 text-sm text-[#382a2a] outline-none transition placeholder:text-[#a5908e] focus:border-[#b87580];
+}
+
+.soft-button {
+  @apply inline-flex items-center justify-center rounded-full border border-[#e7d2cd] bg-[#fff] px-5 py-2.5 text-sm font-medium text-[#382a2a] transition hover:border-[#b87580] hover:text-[#b87580];
+}
+
+.primary-button {
+  @apply inline-flex items-center justify-center rounded-full bg-[#382a2a] px-6 py-3 text-sm font-medium text-white transition hover:bg-[#b87580];
+}
+
+.secondary-button {
+  @apply inline-flex items-center justify-center rounded-full bg-[#f3e1dc] px-6 py-3 text-sm font-medium text-[#382a2a] transition hover:bg-[#e8c9c5];
+}
+
+.hero-slider-track {
+  transition: transform 650ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.hero-slider-zoom {
+  animation: hero-image-zoom 5s ease-out both;
+}
+
+@keyframes hero-image-zoom {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.08);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-slider-track {
+    transition: none;
+  }
+
+  .hero-slider-zoom {
+    animation: none;
+  }
+}

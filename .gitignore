@@ -1,0 +1,13 @@
+.next/
+node_modules/
+out/
+coverage/
+.env*
+!.env.example
+/data/*.db*
+/data/uploads/*
+!/data/uploads/.gitkeep
+/public/uploads/*
+!/public/uploads/.gitkeep
+*.tsbuildinfo
+npm-debug.log*
