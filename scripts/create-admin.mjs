@@ -30,6 +30,9 @@ const pool = mysql.createPool({
   connectionLimit: 2,
   charset: 'utf8mb4',
   timezone: 'Z',
+  ssl: {
+    minVersion: 'TLSv1.2',
+  },
 });
 
 try {

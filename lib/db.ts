@@ -46,6 +46,9 @@ function getPool() {
     queueLimit: 0,
     charset: 'utf8mb4',
     timezone: 'Z',
+    ssl: {
+      minVersion: 'TLSv1.2',
+    },
   });
 
   return pool;
