@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { BookOpen, FileImage, Layers, Pencil, Plus, Save, Shield, Tags, Trash2 } from 'lucide-react';
 
+import { uploadAdminImage } from '@/lib/admin-image-upload';
 import type { BlogPost, StoreBrand, StoreCollection } from '@/lib/store';
 
 type CatalogSection = 'collections' | 'brands' | 'blog' | 'users';
@@ -91,13 +92,7 @@ export function AdminCatalogManager({ section }: { section: CatalogSection }) {
     setUploading(true);
     setError('');
     try {
-      const formData = new FormData();
-      formData.set('file', file);
-      const response = await fetch('/api/admin/uploads', { method: 'POST', body: formData });
-      if (!response.ok) throw await responseError(response, 'Unable to upload image.');
-      const result = await response.json() as { url?: string };
-      if (!result.url) throw new Error('Image upload did not return a URL.');
-      const url = result.url;
+      const url = await uploadAdminImage(file);
       if (section === 'blog') setBlogForm((current) => ({ ...current, image: url }));
       else setResourceForm((current) => ({ ...current, image: url }));
       setNotice('Image uploaded. Save the changes to publish it.');
@@ -232,7 +227,7 @@ export function AdminCatalogManager({ section }: { section: CatalogSection }) {
 
       {section === 'collections' || section === 'brands' ? (
         <div className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
-          <form onSubmit={submitResource} className="section-card h-fit space-y-4 p-6">
+          <form onSubmit={submitResource} className="section-card h-fit space-y-4 p-4 sm:p-6">
             <div className="flex items-center gap-3"><Icon className="text-[#b87580]" size={20} /><div><p className="text-[10px] uppercase tracking-[0.24em] text-[#b87580]">Catalog</p><h3 className="mt-1 font-serif text-2xl text-[#382a2a]">{editingId ? `Edit ${section === 'brands' ? 'brand' : 'collection'}` : `Add ${section === 'brands' ? 'brand' : 'collection'}`}</h3></div></div>
             <label className="block space-y-2"><span className="text-sm text-[#382a2a]">Name</span><input value={resourceForm.name} onChange={(event) => setResourceForm((current) => ({ ...current, name: event.target.value }))} maxLength={120} className="admin-input" required /></label>
             <label className="block space-y-2"><span className="text-sm text-[#382a2a]">Description</span><textarea value={resourceForm.description} onChange={(event) => setResourceForm((current) => ({ ...current, description: event.target.value }))} maxLength={10000} className="admin-input min-h-24" /></label>
@@ -251,7 +246,7 @@ export function AdminCatalogManager({ section }: { section: CatalogSection }) {
             {resourceList.map((resource) => (
               <article key={resource.id} className="section-card overflow-hidden">
                 <img src={resource.image} alt="" className="h-40 w-full object-cover" />
-                <div className="p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><h4 className="truncate font-medium text-[#382a2a]">{resource.name}</h4><p className="mt-1 text-xs text-[#8a6f6d]">{resource.productCount} linked products</p><p className="mt-2 line-clamp-2 text-sm text-[#665351]">{resource.description}</p></div><div className="flex gap-2"><button type="button" aria-label={`Edit ${resource.name}`} onClick={() => { setEditingId(resource.id); setResourceForm({ name: resource.name, description: resource.description, image: resource.image }); }} className="rounded-full border border-[#eadcdf] p-2 text-[#8e5963]"><Pencil size={14} /></button><button type="button" aria-label={`Delete ${resource.name}`} onClick={() => void deleteResource(resource)} className="rounded-full border border-[#eadcdf] p-2 text-[#8e5963]"><Trash2 size={14} /></button></div></div></div>
+                <div className="p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><h4 className="truncate font-medium text-[#382a2a]">{resource.name}</h4><p className="mt-1 text-xs text-[#8a6f6d]">{resource.productCount} linked products</p><p className="mt-2 line-clamp-2 text-sm text-[#665351]">{resource.description}</p></div><div className="flex shrink-0 gap-2"><button type="button" aria-label={`Edit ${resource.name}`} onClick={() => { setEditingId(resource.id); setResourceForm({ name: resource.name, description: resource.description, image: resource.image }); }} className="flex min-h-10 min-w-10 items-center justify-center rounded-full border border-[#eadcdf] p-2 text-[#8e5963]"><Pencil size={14} /></button><button type="button" aria-label={`Delete ${resource.name}`} onClick={() => void deleteResource(resource)} className="flex min-h-10 min-w-10 items-center justify-center rounded-full border border-[#eadcdf] p-2 text-[#8e5963]"><Trash2 size={14} /></button></div></div></div>
               </article>
             ))}
             {resourceList.length === 0 ? <p className="section-card p-6 text-sm text-[#8a6f6d]">No {section} yet. Add one to start organizing your catalog.</p> : null}
@@ -261,7 +256,7 @@ export function AdminCatalogManager({ section }: { section: CatalogSection }) {
 
       {section === 'blog' ? (
         <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
-          <form onSubmit={submitBlog} className="section-card space-y-4 p-6">
+          <form onSubmit={submitBlog} className="section-card space-y-4 p-4 sm:p-6">
             <div><p className="text-[10px] uppercase tracking-[0.24em] text-[#b87580]">Journal</p><h3 className="mt-1 font-serif text-2xl text-[#382a2a]">{editingId ? 'Edit blog post' : 'Write a post'}</h3></div>
             <label className="block space-y-2"><span className="text-sm">Title</span><input value={blogForm.title} onChange={(event) => setBlogForm((current) => ({ ...current, title: event.target.value }))} maxLength={180} className="admin-input" required /></label>
             <label className="block space-y-2"><span className="text-sm">Excerpt</span><textarea value={blogForm.excerpt} onChange={(event) => setBlogForm((current) => ({ ...current, excerpt: event.target.value }))} maxLength={500} className="admin-input min-h-20" required /></label>
@@ -272,7 +267,7 @@ export function AdminCatalogManager({ section }: { section: CatalogSection }) {
             <div className="flex gap-3"><button type="submit" disabled={busy || uploading} className="rounded-full bg-[#382a2a] px-5 py-3 text-sm text-white hover:bg-[#b87580] disabled:opacity-60">{busy ? 'Saving...' : editingId ? 'Save post' : 'Create post'}</button>{editingId ? <button type="button" onClick={resetForm} className="rounded-full border border-[#e9d8d0] px-5 py-3 text-sm">Cancel</button> : null}</div>
           </form>
           <div className="space-y-3">
-            {posts.map((post) => <article key={post.id} className="section-card flex gap-4 p-4"><img src={post.image} alt="" className="h-24 w-24 shrink-0 rounded-xl object-cover" /><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><h4 className="truncate font-medium text-[#382a2a]">{post.title}</h4><p className="mt-1 text-xs text-[#8a6f6d]">{post.category} · {post.published ? 'Published' : 'Draft'}</p><p className="mt-2 line-clamp-2 text-sm text-[#665351]">{post.excerpt}</p></div><div className="flex gap-2"><button type="button" aria-label={`Edit ${post.title}`} onClick={() => { setEditingId(post.id); setBlogForm({ title: post.title, excerpt: post.excerpt, content: post.content, category: post.category, image: post.image, author: post.author, published: post.published }); }} className="rounded-full border border-[#eadcdf] p-2 text-[#8e5963]"><Pencil size={14} /></button><button type="button" aria-label={`Delete ${post.title}`} onClick={() => void deleteBlogPost(post)} className="rounded-full border border-[#eadcdf] p-2 text-[#8e5963]"><Trash2 size={14} /></button></div></div></div></article>)}
+            {posts.map((post) => <article key={post.id} className="section-card flex gap-3 p-3 sm:gap-4 sm:p-4"><img src={post.image} alt="" className="h-20 w-20 shrink-0 rounded-xl object-cover sm:h-24 sm:w-24" /><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-2 sm:gap-3"><div className="min-w-0"><h4 className="truncate font-medium text-[#382a2a]">{post.title}</h4><p className="mt-1 text-xs text-[#8a6f6d]">{post.category} · {post.published ? 'Published' : 'Draft'}</p><p className="mt-2 line-clamp-2 text-sm text-[#665351]">{post.excerpt}</p></div><div className="flex shrink-0 gap-1 sm:gap-2"><button type="button" aria-label={`Edit ${post.title}`} onClick={() => { setEditingId(post.id); setBlogForm({ title: post.title, excerpt: post.excerpt, content: post.content, category: post.category, image: post.image, author: post.author, published: post.published }); }} className="flex min-h-10 min-w-10 items-center justify-center rounded-full border border-[#eadcdf] p-2 text-[#8e5963]"><Pencil size={14} /></button><button type="button" aria-label={`Delete ${post.title}`} onClick={() => void deleteBlogPost(post)} className="flex min-h-10 min-w-10 items-center justify-center rounded-full border border-[#eadcdf] p-2 text-[#8e5963]"><Trash2 size={14} /></button></div></div></div></article>)}
             {posts.length === 0 ? <p className="section-card p-6 text-sm text-[#8a6f6d]">No blog posts yet.</p> : null}
           </div>
         </div>
@@ -280,7 +275,7 @@ export function AdminCatalogManager({ section }: { section: CatalogSection }) {
 
       {section === 'users' ? (
         <div className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
-          <form onSubmit={submitAccount} className="section-card h-fit space-y-4 p-6">
+          <form onSubmit={submitAccount} className="section-card h-fit space-y-4 p-4 sm:p-6">
             <div><p className="text-[10px] uppercase tracking-[0.24em] text-[#b87580]">Access control</p><h3 className="mt-1 font-serif text-2xl text-[#382a2a]">Add administrator</h3><p className="mt-2 text-sm text-[#8a6f6d]">Every account created here has full administrator access.</p></div>
             <label className="block space-y-2"><span className="text-sm">Name</span><input value={accountForm.name} onChange={(event) => setAccountForm((current) => ({ ...current, name: event.target.value }))} maxLength={120} className="admin-input" required /></label>
             <label className="block space-y-2"><span className="text-sm">Email</span><input type="email" autoComplete="email" value={accountForm.email} onChange={(event) => setAccountForm((current) => ({ ...current, email: event.target.value }))} maxLength={254} className="admin-input" required /></label>
@@ -305,7 +300,7 @@ export function AdminCatalogManager({ section }: { section: CatalogSection }) {
             <button type="submit" disabled={busy} className="inline-flex items-center gap-2 rounded-full bg-[#382a2a] px-5 py-3 text-sm text-white hover:bg-[#b87580] disabled:opacity-60"><Plus size={15} />{busy ? 'Creating...' : 'Create account'}</button>
           </form>
           <div className="space-y-3">
-            {users.map((account) => <article key={account.id} className="section-card flex items-center justify-between gap-4 p-5"><div><h4 className="font-medium text-[#382a2a]">{account.name}</h4><p className="mt-1 text-sm text-[#8a6f6d]">{account.email}</p><span className="mt-2 inline-block rounded-full bg-[#f7efee] px-3 py-1 text-xs text-[#8e5963]">{account.role}</span><span className={`ml-2 mt-2 inline-block rounded-full px-3 py-1 text-xs ${account.emailTwoFactorEnabled ? 'bg-[#e8f4eb] text-[#356a49]' : 'bg-[#f5f0ec] text-[#8a6f6d]'}`}>{account.emailTwoFactorEnabled ? 'Email 2FA enabled' : 'Password only'}</span></div><button type="button" onClick={() => void deleteAccount(account)} aria-label={`Delete ${account.email}`} className="rounded-full border border-[#eadcdf] p-2 text-[#8e5963] hover:border-[#b87580]"><Trash2 size={16} /></button></article>)}
+            {users.map((account) => <article key={account.id} className="section-card flex items-center justify-between gap-3 p-4 sm:gap-4 sm:p-5"><div className="min-w-0"><h4 className="break-words font-medium text-[#382a2a]">{account.name}</h4><p className="mt-1 break-all text-sm text-[#8a6f6d]">{account.email}</p><span className="mt-2 inline-block rounded-full bg-[#f7efee] px-3 py-1 text-xs text-[#8e5963]">{account.role}</span><span className={`ml-2 mt-2 inline-block rounded-full px-3 py-1 text-xs ${account.emailTwoFactorEnabled ? 'bg-[#e8f4eb] text-[#356a49]' : 'bg-[#f5f0ec] text-[#8a6f6d]'}`}>{account.emailTwoFactorEnabled ? 'Email 2FA enabled' : 'Password only'}</span></div><button type="button" onClick={() => void deleteAccount(account)} aria-label={`Delete ${account.email}`} className="flex min-h-10 min-w-10 shrink-0 items-center justify-center rounded-full border border-[#eadcdf] p-2 text-[#8e5963] hover:border-[#b87580]"><Trash2 size={16} /></button></article>)}
             {users.length === 0 ? <p className="section-card p-6 text-sm text-[#8a6f6d]">No administrator accounts found.</p> : null}
           </div>
         </div>

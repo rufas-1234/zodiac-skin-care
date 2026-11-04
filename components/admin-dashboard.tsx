@@ -9,6 +9,7 @@ import {
   Gift,
   Layers,
   LayoutDashboard,
+  MapPin,
   Megaphone,
   Package,
   Pencil,
@@ -31,12 +32,13 @@ import { DEFAULT_SITE_CONTENT, type AboutTeamMember } from '@/lib/site-content';
 import { AdminCatalogManager } from '@/components/admin-catalog-manager';
 import { AdminOrderManager } from '@/components/admin-order-manager';
 import { SESSION_IDLE_TIMEOUT_SECONDS } from '@/lib/auth-constants';
+import { uploadAdminImage } from '@/lib/admin-image-upload';
 
 type AdminDashboardProps = {
   user: { email: string; name: string; role: string };
 };
 
-type AdminSection = 'overview' | 'products' | 'inventory' | 'orders' | 'categories' | 'collections' | 'brands' | 'blog' | 'content' | 'users';
+type AdminSection = 'overview' | 'products' | 'inventory' | 'orders' | 'categories' | 'collections' | 'brands' | 'blog' | 'contact' | 'content' | 'users';
 
 type ProductFormState = {
   name: string;
@@ -103,6 +105,7 @@ const NAV_ITEMS: Array<{
   { id: 'collections', label: 'Collections', icon: Layers },
   { id: 'brands', label: 'Brands', icon: Store },
   { id: 'blog', label: 'Blog posts', icon: BookOpen },
+  { id: 'contact', label: 'Contact details', icon: MapPin },
   { id: 'content', label: 'Storefront content', icon: Store },
   { id: 'users', label: 'Admin accounts', icon: Shield },
 ];
@@ -434,14 +437,8 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
     setError('');
     setNotice('');
     try {
-      const formData = new FormData();
-      formData.set('file', file);
-      const response = await fetch('/api/admin/uploads', { method: 'POST', body: formData });
-      const result = (await response.json()) as { url?: string; error?: string };
-      if (!response.ok || !result.url) {
-        throw new Error(result.error || 'Unable to upload image.');
-      }
-      setForm((current) => ({ ...current, image: result.url ?? current.image }));
+      const url = await uploadAdminImage(file);
+      setForm((current) => ({ ...current, image: url }));
       setNotice('Image uploaded. Save the product to publish it.');
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : 'Unable to upload image.');
@@ -458,12 +455,8 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
     setError('');
     setNotice('');
     try {
-      const formData = new FormData();
-      formData.set('file', file);
-      const response = await fetch('/api/admin/uploads', { method: 'POST', body: formData });
-      const result = await response.json() as { url?: string; error?: string };
-      if (!response.ok || !result.url) throw new Error(result.error || 'Unable to upload category image.');
-      setCategoryImage(result.url);
+      const url = await uploadAdminImage(file);
+      setCategoryImage(url);
       setNotice('Category image uploaded. Save the category to publish it.');
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : 'Unable to upload category image.');
@@ -483,12 +476,8 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
     setError('');
     setNotice('');
     try {
-      const formData = new FormData();
-      formData.set('file', file);
-      const response = await fetch('/api/admin/uploads', { method: 'POST', body: formData });
-      const result = await response.json() as { url?: string; error?: string };
-      if (!response.ok || !result.url) throw new Error(result.error || 'Unable to upload hero image.');
-      setSiteContent((current) => ({ ...current, [key]: result.url ?? current[key] }));
+      const url = await uploadAdminImage(file);
+      setSiteContent((current) => ({ ...current, [key]: url }));
       const slideIndex = [...HERO_SLIDE_KEYS, ...ABOUT_SLIDE_KEYS].indexOf(key) + 1;
       setNotice(`${key.startsWith('about_') ? 'About' : 'Homepage'} image ${slideIndex} uploaded. Save storefront content to publish it.`);
     } catch (uploadError) {
@@ -509,13 +498,9 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
     setError('');
     setNotice('');
     try {
-      const formData = new FormData();
-      formData.set('file', file);
-      const response = await fetch('/api/admin/uploads', { method: 'POST', body: formData });
-      const result = await response.json() as { url?: string; error?: string };
-      if (!response.ok || !result.url) throw new Error(result.error || 'Unable to upload team photo.');
+      const url = await uploadAdminImage(file);
       setTeamMembers((current) => current.map((member) =>
-        member.id === memberId ? { ...member, image: result.url ?? member.image } : member,
+        member.id === memberId ? { ...member, image: url } : member,
       ));
       setNotice('Team photo uploaded. Save storefront content to publish it.');
     } catch (uploadError) {
@@ -683,6 +668,33 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
     }
   };
 
+  const handleContactSave = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setContentSaving(true);
+    setError('');
+    setNotice('');
+    const contactDetails = Object.fromEntries(
+      Object.entries(siteContent).filter(([key]) => key.startsWith('contact_')),
+    );
+    try {
+      const response = await fetch('/api/site-content', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(contactDetails),
+      });
+      const result = await response.json() as Record<string, string> & { error?: string };
+      if (!response.ok) {
+        throw new Error(result.error || 'Unable to save contact details.');
+      }
+      setSiteContent((current) => ({ ...current, ...result }));
+      setNotice('Contact details saved.');
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Unable to save contact details.');
+    } finally {
+      setContentSaving(false);
+    }
+  };
+
   const handleLogout = async () => {
     try {
       const response = await fetch('/api/auth/logout', { method: 'POST' });
@@ -711,57 +723,43 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
   };
 
   return (
-    <div className="container-shell py-8 md:py-12">
-      <header className="mb-7 flex flex-wrap items-center justify-between gap-4">
+    <div className="container-shell py-5 sm:py-8 md:py-12">
+      <header className="mb-5 flex flex-wrap items-center justify-between gap-3 sm:mb-7 sm:gap-4">
         <div>
           <p className="text-[10px] uppercase tracking-[0.32em] text-[#b87580]">Zodiac Beauty</p>
-          <h1 className="mt-1 font-serif text-4xl text-[#382a2a]">Store admin</h1>
+          <h1 className="mt-1 font-serif text-3xl text-[#382a2a] sm:text-4xl">Store admin</h1>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="hidden text-right sm:block">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="max-w-36 text-right sm:max-w-none">
             <p className="text-sm font-medium text-[#382a2a]">{user.name}</p>
-            <p className="text-xs text-[#8a6f6d]">{user.email}</p>
+            <p className="hidden text-xs text-[#8a6f6d] sm:block">{user.email}</p>
           </div>
-          <button type="button" onClick={handleLogout} className="rounded-full border border-[#eadcdf] bg-white px-4 py-2 text-sm text-[#382a2a] hover:border-[#b87580]">Sign out</button>
+          <button type="button" onClick={handleLogout} className="min-h-11 rounded-full border border-[#eadcdf] bg-white px-3 text-xs text-[#382a2a] hover:border-[#b87580] sm:px-4 sm:text-sm">Sign out</button>
         </div>
       </header>
 
       <div className="grid gap-6 lg:grid-cols-[230px_minmax(0,1fr)]">
-        <aside className="h-fit rounded-[26px] border border-[#f0dfda] bg-white p-3 lg:sticky lg:top-6">
-          <label className="sr-only" htmlFor="admin-section-select">Admin section</label>
-          <select
-            id="admin-section-select"
-            value={activeSection}
-            onChange={(event) => {
-              const selected = NAV_ITEMS.find((item) => item.id === event.currentTarget.value)?.id;
-              if (selected) {
-                handleSectionChange(selected);
-              }
-            }}
-            className="min-h-12 w-full rounded-2xl border border-[#eadcdf] bg-[#faf7f4] px-4 text-sm text-[#382a2a] outline-none focus:border-[#b87580] lg:hidden"
-          >
-            {NAV_ITEMS.map(({ id, label }) => <option key={id} value={id}>{label}</option>)}
-          </select>
-          <nav aria-label="Admin sections" className="hidden gap-2 lg:flex lg:flex-col">
+        <aside className="h-fit rounded-[22px] border border-[#f0dfda] bg-white p-2.5 sm:rounded-[26px] sm:p-3 lg:sticky lg:top-6">
+          <nav aria-label="Admin sections" className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:flex lg:flex-col">
             {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
                 type="button"
                 onClick={() => handleSectionChange(id)}
                 aria-current={activeSection === id ? 'page' : undefined}
-                className={`flex shrink-0 items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm transition lg:w-full ${
+                className={`flex min-h-11 min-w-0 items-center gap-2 rounded-xl px-2.5 py-2 text-left text-xs leading-tight transition sm:gap-2.5 sm:px-3 sm:text-sm lg:w-full lg:rounded-2xl lg:px-4 lg:py-3 ${
                   activeSection === id
                     ? 'bg-[#382a2a] font-medium text-white'
                     : 'text-[#5d4c4b] hover:bg-[#faf2f0]'
                 }`}
               >
-                <Icon size={17} />
-                {label}
+                <Icon size={16} className="shrink-0" />
+                <span className="min-w-0">{label}</span>
               </button>
             ))}
           </nav>
-          <div className="mt-4 hidden border-t border-[#f0dfda] pt-4 lg:block">
-            <a href="/" target="_blank" rel="noreferrer" className="flex items-center justify-between rounded-xl px-4 py-3 text-sm text-[#8a6f6d] hover:bg-[#faf2f0]">
+          <div className="mt-2 border-t border-[#f0dfda] pt-2 lg:mt-4 lg:pt-4">
+            <a href="/" target="_blank" rel="noreferrer" className="flex min-h-11 items-center justify-between rounded-xl px-3 py-2 text-xs text-[#8a6f6d] hover:bg-[#faf2f0] sm:px-4 sm:text-sm">
               View storefront <ChevronRight size={15} />
             </a>
           </div>
@@ -771,7 +769,7 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
           <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-[10px] uppercase tracking-[0.28em] text-[#b87580]">Manage your store</p>
-              <h2 className="mt-1 font-serif text-3xl text-[#382a2a]">{sectionTitle}</h2>
+              <h2 className="mt-1 font-serif text-2xl text-[#382a2a] sm:text-3xl">{sectionTitle}</h2>
             </div>
             {(activeSection === 'products' || activeSection === 'inventory') ? (
               <label className="flex min-w-0 items-center gap-2 rounded-full border border-[#eadcdf] bg-white px-4 py-3 sm:w-80">
@@ -809,7 +807,7 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
                 ))}
               </div>
               <div className="mt-6 grid gap-5 xl:grid-cols-2">
-                <div className="section-card p-6">
+                <div className="section-card p-4 sm:p-6">
                   <div className="flex items-center justify-between">
                     <div>
                       <h3 className="font-serif text-2xl text-[#382a2a]">Inventory attention</h3>
@@ -822,7 +820,7 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
                     <div className="rounded-2xl bg-[#fbf3ef] p-4"><p className="text-xs uppercase tracking-[0.18em] text-[#8a6f6d]">Out of stock</p><p className="mt-2 text-2xl font-semibold text-[#382a2a]">{outOfStockCount}</p></div>
                   </div>
                 </div>
-                <div className="section-card p-6">
+                <div className="section-card p-4 sm:p-6">
                   <h3 className="font-serif text-2xl text-[#382a2a]">Quick actions</h3>
                   <div className="mt-5 grid gap-3 sm:grid-cols-2">
                     <button type="button" onClick={() => { startNewProduct(); setActiveSection('products'); }} className="flex items-center gap-3 rounded-2xl border border-[#f0dfda] p-4 text-left text-sm text-[#382a2a] hover:bg-[#faf5f4]"><Plus size={17} className="text-[#b87580]" /> Add a product</button>
@@ -875,7 +873,7 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
                             {uploading ? 'Uploading image...' : 'Upload image from device'}
                             <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" disabled={uploading} onChange={(event) => void handleImageUpload(event)} className="sr-only" />
                           </label>
-                          <p className="text-xs text-[#8a6f6d]">JPEG, PNG, WebP or GIF · up to 5 MB</p>
+                          <p className="text-xs text-[#8a6f6d]">JPEG, PNG, WebP or GIF · up to 10 MB</p>
                           <label className="block space-y-1"><span className="text-xs text-[#8a6f6d]">Or paste an image URL or local upload path</span><input type="text" value={form.image} onChange={(event) => setForm((current) => ({ ...current, image: event.target.value }))} className="admin-input" required /></label>
                         </div>
                       </div>
@@ -929,8 +927,8 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
                     <span className="hidden truncate text-xs text-[#5d4c4b] sm:inline">{product.category}</span>
                     <span className={`text-xs ${product.stock <= 5 ? 'font-medium text-[#a64f52]' : 'text-[#5d4c4b]'}`}>{product.stock}</span>
                     <div className="flex justify-end gap-1 sm:gap-2">
-                      <button type="button" onClick={() => startProductEdit(product)} aria-label={`Edit ${product.name}`} className="rounded-full border border-[#eadcdf] p-1.5 text-[#72575a] hover:border-[#b87580] sm:p-2"><Pencil size={14} /></button>
-                      <button type="button" onClick={() => void handleProductDelete(product)} aria-label={`Delete ${product.name}`} className="rounded-full border border-[#eadcdf] p-1.5 text-[#9a5858] hover:border-[#b87580] sm:p-2"><Trash2 size={14} /></button>
+                      <button type="button" onClick={() => startProductEdit(product)} aria-label={`Edit ${product.name}`} className="flex min-h-10 min-w-9 items-center justify-center rounded-full border border-[#eadcdf] p-2 text-[#72575a] hover:border-[#b87580]"><Pencil size={14} /></button>
+                      <button type="button" onClick={() => void handleProductDelete(product)} aria-label={`Delete ${product.name}`} className="flex min-h-10 min-w-9 items-center justify-center rounded-full border border-[#eadcdf] p-2 text-[#9a5858] hover:border-[#b87580]"><Trash2 size={14} /></button>
                     </div>
                   </div>
                 ))}
@@ -947,9 +945,9 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
                 <div className="rounded-2xl border border-[#f0dfda] bg-white p-4"><p className="text-xs uppercase tracking-[0.18em] text-[#8a6f6d]">Out of stock</p><p className="mt-2 text-2xl font-semibold text-[#a64f52]">{outOfStockCount}</p></div>
               </div>
               <div className="overflow-hidden rounded-[24px] border border-[#f0dfda] bg-white">
-                <div className="grid grid-cols-[minmax(0,1fr)_52px_64px_64px] gap-1.5 border-b border-[#f0dfda] bg-[#fcf8f7] px-2.5 py-3 text-[8px] uppercase tracking-[0.1em] text-[#8a6f6d] sm:grid-cols-[minmax(0,1fr)_120px_100px_120px] sm:gap-3 sm:px-4 sm:text-[10px] sm:tracking-[0.18em]"><span>Product</span><span className="hidden sm:inline">Category</span><span>Qty</span><span className="text-right">Action</span></div>
+                <div className="grid grid-cols-[minmax(0,1fr)_52px_64px_76px] gap-1.5 border-b border-[#f0dfda] bg-[#fcf8f7] px-2.5 py-3 text-[8px] uppercase tracking-[0.1em] text-[#8a6f6d] sm:grid-cols-[minmax(0,1fr)_120px_100px_120px] sm:gap-3 sm:px-4 sm:text-[10px] sm:tracking-[0.18em]"><span>Product</span><span className="hidden sm:inline">Category</span><span>Qty</span><span className="text-right">Action</span></div>
                 {inventoryProducts.map((product) => (
-                  <div key={product.id} className="grid grid-cols-[minmax(0,1fr)_52px_64px_64px] items-center gap-1.5 border-b border-[#f5e9e6] px-2.5 py-3 last:border-0 sm:grid-cols-[minmax(0,1fr)_120px_100px_120px] sm:gap-3 sm:px-4">
+                  <div key={product.id} className="grid grid-cols-[minmax(0,1fr)_52px_64px_76px] items-center gap-1.5 border-b border-[#f5e9e6] px-2.5 py-3 last:border-0 sm:grid-cols-[minmax(0,1fr)_120px_100px_120px] sm:gap-3 sm:px-4">
                     <div className="flex min-w-0 items-center gap-2 sm:gap-3"><img src={product.image} alt="" className="h-10 w-10 shrink-0 rounded-xl object-cover sm:h-12 sm:w-12" /><div className="min-w-0"><p className="truncate text-sm font-medium text-[#382a2a]">{product.name}</p><p className="text-xs text-[#8a6f6d]">SKU #{product.id}</p></div></div>
                     <span className="hidden truncate text-xs text-[#5d4c4b] sm:inline">{product.category}</span>
                     <span className={`text-xs font-semibold sm:text-sm ${product.stock === 0 ? 'text-[#a64f52]' : product.stock <= 5 ? 'text-[#a06448]' : 'text-[#382a2a]'}`}>{product.stock} <span className="hidden sm:inline">{product.stock === 1 ? 'unit' : 'units'}</span></span>
@@ -963,7 +961,7 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
 
           {!loading && activeSection === 'categories' ? (
             <section className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
-              <form onSubmit={handleCategorySubmit} className="section-card h-fit space-y-4 p-6">
+              <form onSubmit={handleCategorySubmit} className="section-card h-fit space-y-4 p-4 sm:p-6">
                 <div><p className="text-[10px] uppercase tracking-[0.24em] text-[#b87580]">Catalog</p><h3 className="mt-1 font-serif text-2xl text-[#382a2a]">{editingCategoryId ? 'Edit category' : 'Add category'}</h3></div>
                 <label className="block space-y-2"><span className="text-sm text-[#382a2a]">Category name</span><input value={categoryName} onChange={(event) => setCategoryName(event.target.value)} maxLength={60} className="admin-input" placeholder="e.g. Bath & Body" required /></label>
                 <div className="space-y-3">
@@ -974,7 +972,7 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
                     <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" disabled={categoryUploading} onChange={(event) => void handleCategoryImageUpload(event)} className="sr-only" />
                   </label>
                   <input type="text" value={categoryImage} onChange={(event) => setCategoryImage(event.target.value)} maxLength={2048} className="admin-input" placeholder="Or paste an image URL or upload path" required />
-                  <p className="text-xs text-[#8a6f6d]">JPEG, PNG, WebP or GIF · up to 5 MB</p>
+                  <p className="text-xs text-[#8a6f6d]">JPEG, PNG, WebP or GIF · up to 10 MB</p>
                 </div>
                 <div className="flex gap-3"><button type="submit" disabled={categorySaving || categoryUploading} className="rounded-full bg-[#382a2a] px-5 py-3 text-sm text-white hover:bg-[#b87580] disabled:opacity-60">{categorySaving ? 'Saving...' : categoryUploading ? 'Uploading image...' : editingCategoryId ? 'Save category' : 'Add category'}</button>{editingCategoryId ? <button type="button" onClick={() => { setEditingCategoryId(null); setCategoryName(''); setCategoryImage(''); }} className="rounded-full border border-[#e9d8d0] bg-white px-5 py-3 text-sm">Cancel</button> : null}</div>
               </form>
@@ -982,15 +980,60 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
                 {categories.map((category) => (
                   <article key={category.id} className="flex items-center gap-3 rounded-[20px] border border-[#f0dfda] bg-white p-3">
                     <img src={category.image} alt="" className="h-16 w-16 rounded-[14px] object-cover" />
-                    <div className="min-w-0 flex-1"><p className="truncate font-medium text-[#382a2a]">{category.name}</p><p className="text-xs text-[#8a6f6d]">{category.productCount} products</p><div className="mt-2 flex gap-3"><button type="button" onClick={() => { setEditingCategoryId(category.id); setCategoryName(category.name); setCategoryImage(category.image); }} className="text-xs text-[#8e5963] underline underline-offset-2">Edit</button><button type="button" onClick={() => void handleCategoryDelete(category)} className="text-xs text-[#8e5963] underline underline-offset-2">Delete</button></div></div>
+                    <div className="min-w-0 flex-1"><p className="truncate font-medium text-[#382a2a]">{category.name}</p><p className="text-xs text-[#8a6f6d]">{category.productCount} products</p><div className="mt-1 flex gap-1"><button type="button" onClick={() => { setEditingCategoryId(category.id); setCategoryName(category.name); setCategoryImage(category.image); }} className="inline-flex min-h-10 items-center rounded-lg px-2 text-xs text-[#8e5963] underline underline-offset-2">Edit</button><button type="button" onClick={() => void handleCategoryDelete(category)} className="inline-flex min-h-10 items-center rounded-lg px-2 text-xs text-[#8e5963] underline underline-offset-2">Delete</button></div></div>
                   </article>
                 ))}
               </div>
             </section>
           ) : null}
 
+          {!loading && activeSection === 'contact' ? (
+            <form onSubmit={handleContactSave} className="section-card space-y-5 p-4 sm:p-6">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.24em] text-[#b87580]">Store information</p>
+                <h3 className="mt-1 font-serif text-2xl text-[#382a2a]">Contact details</h3>
+                <p className="mt-2 text-sm leading-6 text-[#8a6f6d]">
+                  Set the contact information customers see on the Contact and About pages.
+                </p>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="block min-w-0 space-y-2">
+                  <span className="text-sm text-[#382a2a]">Phone number</span>
+                  <input type="tel" value={siteContent.contact_phone} onChange={(event) => setSiteContent((current) => ({ ...current, contact_phone: event.target.value }))} maxLength={40} className="admin-input" autoComplete="tel" />
+                </label>
+                <label className="block min-w-0 space-y-2">
+                  <span className="text-sm text-[#382a2a]">WhatsApp number (include country code)</span>
+                  <input type="tel" value={siteContent.contact_whatsapp} onChange={(event) => setSiteContent((current) => ({ ...current, contact_whatsapp: event.target.value }))} maxLength={40} className="admin-input" autoComplete="tel" />
+                </label>
+                <label className="block min-w-0 space-y-2">
+                  <span className="text-sm text-[#382a2a]">Contact email</span>
+                  <input type="email" value={siteContent.contact_email} onChange={(event) => setSiteContent((current) => ({ ...current, contact_email: event.target.value }))} maxLength={254} className="admin-input" autoComplete="email" />
+                </label>
+                <label className="block min-w-0 space-y-2">
+                  <span className="text-sm text-[#382a2a]">City / location</span>
+                  <input value={siteContent.contact_location} onChange={(event) => setSiteContent((current) => ({ ...current, contact_location: event.target.value }))} maxLength={180} className="admin-input" autoComplete="address-level2" />
+                </label>
+                <label className="block min-w-0 space-y-2 sm:col-span-2">
+                  <span className="text-sm text-[#382a2a]">Street address or directions</span>
+                  <textarea value={siteContent.contact_address} onChange={(event) => setSiteContent((current) => ({ ...current, contact_address: event.target.value }))} maxLength={300} className="admin-input min-h-20" autoComplete="street-address" />
+                </label>
+                <label className="block min-w-0 space-y-2 sm:col-span-2">
+                  <span className="text-sm text-[#382a2a]">Opening hours</span>
+                  <input value={siteContent.contact_hours} onChange={(event) => setSiteContent((current) => ({ ...current, contact_hours: event.target.value }))} maxLength={180} className="admin-input" />
+                </label>
+                <label className="block min-w-0 space-y-2 sm:col-span-2">
+                  <span className="text-sm text-[#382a2a]">Contact page introduction</span>
+                  <textarea value={siteContent.contact_message} onChange={(event) => setSiteContent((current) => ({ ...current, contact_message: event.target.value }))} maxLength={1000} className="admin-input min-h-24" />
+                </label>
+              </div>
+              <button type="submit" disabled={contentSaving} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-[#382a2a] px-5 py-3 text-sm font-medium text-white hover:bg-[#b87580] disabled:opacity-60 sm:w-auto">
+                <Save size={15} />{contentSaving ? 'Saving...' : 'Save contact details'}
+              </button>
+            </form>
+          ) : null}
+
           {!loading && activeSection === 'content' ? (
-            <form onSubmit={handleContentSave} className="section-card space-y-4 p-6">
+            <form onSubmit={handleContentSave} className="section-card space-y-4 p-4 sm:p-6">
               <div className="mb-2"><p className="text-[10px] uppercase tracking-[0.24em] text-[#b87580]">CMS</p><h3 className="mt-1 font-serif text-2xl text-[#382a2a]">Homepage content</h3><p className="mt-2 text-sm text-[#8a6f6d]">Update the copy and four rotating hero images displayed on your storefront.</p></div>
               <label className="block space-y-2"><span className="text-sm text-[#382a2a]">Hero badge</span><input value={siteContent.hero_badge} onChange={(event) => setSiteContent((current) => ({ ...current, hero_badge: event.target.value }))} className="admin-input" /></label>
               <label className="block space-y-2"><span className="text-sm text-[#382a2a]">Hero title</span><input value={siteContent.hero_title} onChange={(event) => setSiteContent((current) => ({ ...current, hero_title: event.target.value }))} className="admin-input" /></label>
@@ -1071,21 +1114,6 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
                       </div>
                     </div>
                   ))}
-                </div>
-              </section>
-              <section className="space-y-4 rounded-2xl border border-[#f0dfda] p-4">
-                <div>
-                  <h4 className="text-sm font-medium text-[#382a2a]">Contact details and location</h4>
-                  <p className="mt-1 text-xs text-[#8a6f6d]">These details appear on the About Us and Contact pages.</p>
-                </div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <label className="block space-y-2"><span className="text-sm text-[#382a2a]">Phone number</span><input type="tel" value={siteContent.contact_phone} onChange={(event) => setSiteContent((current) => ({ ...current, contact_phone: event.target.value }))} maxLength={40} className="admin-input" /></label>
-                  <label className="block space-y-2"><span className="text-sm text-[#382a2a]">WhatsApp number (international digits)</span><input type="tel" value={siteContent.contact_whatsapp} onChange={(event) => setSiteContent((current) => ({ ...current, contact_whatsapp: event.target.value }))} maxLength={40} className="admin-input" /></label>
-                  <label className="block space-y-2"><span className="text-sm text-[#382a2a]">Contact email</span><input type="email" value={siteContent.contact_email} onChange={(event) => setSiteContent((current) => ({ ...current, contact_email: event.target.value }))} maxLength={254} className="admin-input" /></label>
-                  <label className="block space-y-2"><span className="text-sm text-[#382a2a]">City / location</span><input value={siteContent.contact_location} onChange={(event) => setSiteContent((current) => ({ ...current, contact_location: event.target.value }))} maxLength={180} className="admin-input" /></label>
-                  <label className="block space-y-2 sm:col-span-2"><span className="text-sm text-[#382a2a]">Street address or directions (optional)</span><input value={siteContent.contact_address} onChange={(event) => setSiteContent((current) => ({ ...current, contact_address: event.target.value }))} maxLength={300} className="admin-input" /></label>
-                  <label className="block space-y-2 sm:col-span-2"><span className="text-sm text-[#382a2a]">Opening hours</span><input value={siteContent.contact_hours} onChange={(event) => setSiteContent((current) => ({ ...current, contact_hours: event.target.value }))} maxLength={180} className="admin-input" /></label>
-                  <label className="block space-y-2 sm:col-span-2"><span className="text-sm text-[#382a2a]">Contact page introduction</span><textarea value={siteContent.contact_message} onChange={(event) => setSiteContent((current) => ({ ...current, contact_message: event.target.value }))} maxLength={1000} className="admin-input min-h-20" /></label>
                 </div>
               </section>
               <label className="block space-y-2"><span className="text-sm text-[#382a2a]">Seasonal offer title</span><input value={siteContent.sale_title} onChange={(event) => setSiteContent((current) => ({ ...current, sale_title: event.target.value }))} className="admin-input" /></label>

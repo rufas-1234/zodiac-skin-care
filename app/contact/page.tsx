@@ -44,10 +44,10 @@ export default async function ContactPage() {
               <span><span className="block font-medium text-[#382a2a]">Email</span><span className="mt-2 block break-words text-sm text-[#665351]">{email}</span></span>
             </a>
           ) : null}
-          {location ? (
+          {location || address ? (
             <div className="section-card flex items-start gap-4 p-6">
               <MapPin className="mt-1 shrink-0 text-[#b87580]" size={20} />
-              <span><span className="block font-medium text-[#382a2a]">Location</span><span className="mt-2 block text-sm text-[#665351]">{location}</span>{address ? <span className="mt-1 block text-xs leading-5 text-[#8a6f6d]">{address}</span> : null}</span>
+              <span><span className="block font-medium text-[#382a2a]">Location</span>{location ? <span className="mt-2 block break-words text-sm text-[#665351]">{location}</span> : null}{address ? <span className={`${location ? 'mt-1' : 'mt-2'} block whitespace-pre-line break-words text-xs leading-5 text-[#8a6f6d]`}>{address}</span> : null}</span>
             </div>
           ) : null}
         </div>

@@ -117,12 +117,12 @@ export default async function AboutPage() {
               <span className="mt-1 block break-words text-sm text-[#665351]">{email}</span>
             </a>
           ) : null}
-          {location ? (
+          {location || address ? (
             <div className="rounded-2xl border border-[#eddad6] bg-white p-5">
               <MapPin size={19} className="text-[#b87580]" />
               <span className="mt-3 block text-sm font-medium text-[#382a2a]">Location</span>
-              <span className="mt-1 block text-sm text-[#665351]">{location}</span>
-              {address ? <span className="mt-1 block text-xs leading-5 text-[#8a6f6d]">{address}</span> : null}
+              {location ? <span className="mt-1 block break-words text-sm text-[#665351]">{location}</span> : null}
+              {address ? <span className="mt-1 block whitespace-pre-line break-words text-xs leading-5 text-[#8a6f6d]">{address}</span> : null}
             </div>
           ) : null}
         </div>

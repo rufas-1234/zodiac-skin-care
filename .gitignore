@@ -11,3 +11,4 @@ coverage/
 !/public/uploads/.gitkeep
 *.tsbuildinfo
 npm-debug.log*
+.vercel
